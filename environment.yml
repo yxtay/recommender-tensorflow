@@ -1,0 +1,8 @@
+name: dl
+channels:
+- defaults
+dependencies:
+- anaconda
+- python=3.6
+- pip:
+  - tensorflow
