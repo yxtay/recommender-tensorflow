@@ -29,6 +29,7 @@ FILES_CONFIG = {
 DATA_DEFAULTS = {
     "data_dir": "data/ml-100k",
     "label": "label",
+    "n_classes": 5,
     "user_features": ["user_id", "age", "gender", "occupation", "zipcode", "zipcode1", "zipcode2", "zipcode3"],
     "item_features": ["item_id", "action", "adventure", "animation", "children", "comedy", "crime",
                       "documentary", "drama", "fantasy", "filmnoir", "horror", "musical", "mystery",
