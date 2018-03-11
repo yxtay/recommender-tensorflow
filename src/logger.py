@@ -32,7 +32,7 @@ def get_logger(name: str, log_path: str = str(PROJECT_DIR / "main.log"),
 
     # rotating file handler
     if log_path:
-        make_dirs(log_path, file=True)
+        make_dirs(log_path, isfile=True)
         fh = RotatingFileHandler(log_path,
                                  maxBytes=10 * 2 ** 20,  # 10 MB
                                  backupCount=1)  # 1 backup

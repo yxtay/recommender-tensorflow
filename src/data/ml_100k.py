@@ -2,14 +2,15 @@ from argparse import ArgumentParser
 import sys
 from pathlib import Path
 import shutil
-from typing import Dict
+from typing import Dict, Iterable
 from zipfile import ZipFile
 
 import dask.dataframe as dd
 import requests
+import tensorflow as tf
 
 from src.logger import get_logger
-from src.tf_utils import dd_tfrecord
+from src.tf_utils import dd_tfrecord, dd_create_categorical_column
 from src.utils import PROJECT_DIR, make_dirs
 
 logger = get_logger(__name__)
@@ -24,6 +25,22 @@ FILES_CONFIG = {
     "train": {"filename": "ua.base", "sep": "\t", "columns": ["user_id", "item_id", "rating", "timestamp"]},
     "test": {"filename": "ua.test", "sep": "\t", "columns": ["user_id", "item_id", "rating", "timestamp"]},
 }
+
+DATA_DEFAULTS = {
+    "data_dir": "data/ml-100k",
+    "label": "label",
+    "user_features": ["user_id", "age", "gender", "occupation", "zipcode", "zipcode1", "zipcode2", "zipcode3"],
+    "item_features": ["item_id", "action", "adventure", "animation", "children", "comedy", "crime",
+                      "documentary", "drama", "fantasy", "filmnoir", "horror", "musical", "mystery",
+                      "romance", "scifi", "thriller", "war", "western", "release_year"],
+    "context_features": ["year", "month", "day", "week", "dayofweek"],
+    "dtype": {"zipcode": object, "zipcode1": object, "zipcode2": object, "zipcode3": object}
+}
+DATA_DEFAULTS.update({
+    "all_csv": str(Path(DATA_DEFAULTS["data_dir"], "all.csv")),
+    "train_csv": str(Path(DATA_DEFAULTS["data_dir"], "train.csv")),
+    "test_csv": str(Path(DATA_DEFAULTS["data_dir"], "test.csv")),
+})
 
 
 def download_data(url: str = "http://files.grouplens.org/datasets/movielens/ml-100k.zip",
@@ -67,6 +84,7 @@ def process_data(data: Dict[str, dd.DataFrame]) -> Dict[str, dd.DataFrame]:
 
     # process items
     items = data["items"]
+    items = items[items["title"] != "unknown"]  # remove "unknown" movie
     items["release"] = dd.to_datetime(items["release"])
     items["release_year"] = items["release"].dt.year
     data["items"] = items.persist()
@@ -75,20 +93,20 @@ def process_data(data: Dict[str, dd.DataFrame]) -> Dict[str, dd.DataFrame]:
     # process context
     for el in ["all", "train", "test"]:
         context = data[el]
-        context["normalised_rating"] = context["rating"] / (context["rating"].max() - context["rating"].min())
+        context["label"] = context["rating"] - 1
         context["datetime"] = dd.to_datetime(context["timestamp"], unit="s")
         context["year"] = context["datetime"].dt.year
         context["month"] = context["datetime"].dt.month
         context["day"] = context["datetime"].dt.day
         context["week"] = context["datetime"].dt.week
-        context["dayofweek"] = context["datetime"].dt.dayofweek
+        context["dayofweek"] = context["datetime"].dt.dayofweek + 1
         data[el] = context
     logger.debug("context data processed.")
 
     # merge data
     dfs = {item: (data[item]
-                  .merge(data["users"], "left", "user_id")
-                  .merge(data["items"], "left", "item_id")
+                  .merge(data["users"], "inner", "user_id")
+                  .merge(data["items"], "inner", "item_id")
                   .persist())
            for item in ["all", "train", "test"]}
     logger.info("data merged.")
@@ -106,6 +124,34 @@ def save_data(dfs: Dict[str, dd.DataFrame], save_dir: str = "data/ml-100k") -> N
         logger.info("data saved: %s.", save_path)
         # save tfrecord
         dd_tfrecord(df, str(Path(save_dir, name + ".tfrecord")))
+
+
+def build_categorical_columns(df: dd.DataFrame,
+                              user_features: Iterable[str] = DATA_DEFAULTS["user_features"],
+                              item_features: Iterable[str] = DATA_DEFAULTS["item_features"],
+                              context_features: Iterable[str] = DATA_DEFAULTS["context_features"]) -> Dict:
+    columns_dict = {
+        col: dd_create_categorical_column(df, col, num_oov_buckets=1)
+        for col in ["user_id", "age", "gender", "occupation", "zipcode", "zipcode1", "zipcode2", "zipcode3",
+                    "item_id", "unknown", "action", "adventure", "animation", "children", "comedy", "crime",
+                    "documentary", "drama", "fantasy", "filmnoir", "horror", "musical", "mystery", "romance",
+                    "scifi", "thriller", "war", "western", "release_year",
+                    "year", "month", "day", "week", "dayofweek"]
+        }
+    columns_dict["age_bucket"] = tf.feature_column.bucketized_column(
+        tf.feature_column.numeric_column("age", dtype=tf.int32),
+        [15, 25, 35, 45, 55, 65]
+    )
+    columns_dict["release_year_bucket"] = tf.feature_column.bucketized_column(
+        tf.feature_column.numeric_column("release_year", dtype=tf.int32),
+        [1930, 1940, 1950, 1960, 1970, 1980, 1990]
+    )
+
+    user_columns = [columns_dict[col] for col in user_features]
+    item_columns = [columns_dict[col] for col in item_features]
+    context_columns = [columns_dict[col] for col in context_features]
+
+    return {"user_columns": user_columns, "item_columns": item_columns, "context_columns": context_columns}
 
 
 if __name__ == "__main__":

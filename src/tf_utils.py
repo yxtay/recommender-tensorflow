@@ -1,3 +1,5 @@
+from typing import Dict
+
 import dask.dataframe as dd
 import numpy as np
 import tensorflow as tf
@@ -34,12 +36,12 @@ def dd_tfrecord(df: dd.DataFrame, tfrecord_path: str) -> None:
                     feature={
                         name: func(getattr(row, name))
                         for name, func in col_func.items()
-                    }))
+                        }))
             writer.write(example.SerializeToString())
     logger.info("tfrecord saved: %s.", tfrecord_path)
 
 
-def tf_csv_dataset(csv_path: str, label_col: str, col_defaults: dict = {},
+def tf_csv_dataset(csv_path: str, label_col: str, col_defaults: Dict = {},
                    shuffle: bool = False, batch_size: int = 32) -> tf.data.Dataset:
     df = dd.read_csv(csv_path)
     # use col_defaults if specified for col, else use defaults base on col type
@@ -60,3 +62,12 @@ def tf_csv_dataset(csv_path: str, label_col: str, col_defaults: dict = {},
     dataset = dataset.map(parse_csv, num_parallel_calls=8)
     dataset = dataset.batch(batch_size)
     return dataset
+
+
+def dd_create_categorical_column(df: dd.DataFrame, col: str, default_value: int = -1, num_oov_buckets: int = 1):
+    return tf.feature_column.categorical_column_with_vocabulary_list(
+        col,
+        df[col].unique().compute().sort_values().tolist(),
+        default_value=default_value,
+        num_oov_buckets=num_oov_buckets
+    )
