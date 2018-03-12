@@ -11,7 +11,7 @@ import tensorflow as tf
 
 from src.logger import get_logger
 from src.tf_utils import dd_tfrecord, dd_create_categorical_column
-from src.utils import PROJECT_DIR, make_dirs
+from src.utils import PROJECT_DIR
 
 logger = get_logger(__name__)
 
@@ -29,18 +29,17 @@ FILES_CONFIG = {
 DATA_DEFAULTS = {
     "data_dir": "data/ml-100k",
     "label": "label",
-    "n_classes": 5,
-    "user_features": ["user_id", "age", "gender", "occupation", "zipcode", "zipcode1", "zipcode2", "zipcode3"],
-    "item_features": ["item_id", "action", "adventure", "animation", "children", "comedy", "crime",
+    "feature_names": ["user_id", "age", "gender", "occupation", "zipcode", "zipcode1", "zipcode2", "zipcode3",
+                      "item_id", "action", "adventure", "animation", "children", "comedy", "crime",
                       "documentary", "drama", "fantasy", "filmnoir", "horror", "musical", "mystery",
-                      "romance", "scifi", "thriller", "war", "western", "release_year"],
-    "context_features": ["year", "month", "day", "week", "dayofweek"],
+                      "romance", "scifi", "thriller", "war", "western", "release_year",
+                      "year", "month", "day", "week", "dayofweek"],
     "dtype": {"zipcode": object, "zipcode1": object, "zipcode2": object, "zipcode3": object}
 }
 DATA_DEFAULTS.update({
     "all_csv": str(Path(DATA_DEFAULTS["data_dir"], "all.csv")),
     "train_csv": str(Path(DATA_DEFAULTS["data_dir"], "train.csv")),
-    "test_csv": str(Path(DATA_DEFAULTS["data_dir"], "test.csv")),
+    "test_csv": str(Path(DATA_DEFAULTS["data_dir"], "test.csv"))
 })
 
 
@@ -94,7 +93,7 @@ def process_data(data: Dict[str, dd.DataFrame]) -> Dict[str, dd.DataFrame]:
     # process context
     for el in ["all", "train", "test"]:
         context = data[el]
-        context["label"] = context["rating"] - 1
+        context["label"] = (context["rating"] >= 4).astype(int)
         context["datetime"] = dd.to_datetime(context["timestamp"], unit="s")
         context["year"] = context["datetime"].dt.year
         context["month"] = context["datetime"].dt.month
@@ -116,8 +115,6 @@ def process_data(data: Dict[str, dd.DataFrame]) -> Dict[str, dd.DataFrame]:
 
 
 def save_data(dfs: Dict[str, dd.DataFrame], save_dir: str = "data/ml-100k") -> None:
-    make_dirs(save_dir)
-
     for name, df in dfs.items():
         # save csv
         save_path = str(Path(save_dir, name + ".csv"))
@@ -128,9 +125,8 @@ def save_data(dfs: Dict[str, dd.DataFrame], save_dir: str = "data/ml-100k") -> N
 
 
 def build_categorical_columns(df: dd.DataFrame,
-                              user_features: Iterable[str] = DATA_DEFAULTS["user_features"],
-                              item_features: Iterable[str] = DATA_DEFAULTS["item_features"],
-                              context_features: Iterable[str] = DATA_DEFAULTS["context_features"]) -> Dict:
+                              feature_names: Iterable[str] = DATA_DEFAULTS["feature_names"]) -> Iterable:
+    # categorical columns
     columns_dict = {
         col: dd_create_categorical_column(df, col, num_oov_buckets=1)
         for col in ["user_id", "age", "gender", "occupation", "zipcode", "zipcode1", "zipcode2", "zipcode3",
@@ -139,6 +135,8 @@ def build_categorical_columns(df: dd.DataFrame,
                     "scifi", "thriller", "war", "western", "release_year",
                     "year", "month", "day", "week", "dayofweek"]
         }
+
+    # bucketized columns
     columns_dict["age_bucket"] = tf.feature_column.bucketized_column(
         tf.feature_column.numeric_column("age", dtype=tf.int32),
         [15, 25, 35, 45, 55, 65]
@@ -148,11 +146,8 @@ def build_categorical_columns(df: dd.DataFrame,
         [1930, 1940, 1950, 1960, 1970, 1980, 1990]
     )
 
-    user_columns = [columns_dict[col] for col in user_features]
-    item_columns = [columns_dict[col] for col in item_features]
-    context_columns = [columns_dict[col] for col in context_features]
-
-    return {"user_columns": user_columns, "item_columns": item_columns, "context_columns": context_columns}
+    categorical_columns = [columns_dict[col] for col in feature_names]
+    return categorical_columns
 
 
 if __name__ == "__main__":
@@ -160,7 +155,7 @@ if __name__ == "__main__":
     parser.add_argument("--url", default="http://files.grouplens.org/datasets/movielens/ml-100k.zip",
                         help="url of MovieLens 100k data (default: %(default)s)")
     parser.add_argument("--dest", default="data",
-                        help="destination directory of downloaded and extracted files (default: %(default)s)")
+                        help="destination directory for downloaded and extracted files (default: %(default)s)")
     parser.add_argument("--log-path", default=str(PROJECT_DIR / "main.log"),
                         help="path of log file (default: %(default)s)")
     args = parser.parse_args()

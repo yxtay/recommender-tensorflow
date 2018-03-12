@@ -14,13 +14,9 @@ from src.utils import PROJECT_DIR
 def train_main(args):
     # build feature columns
     df = dd.read_csv(args.train_csv, dtype=DATA_DEFAULTS["dtype"]).persist()
-    feature_columns = build_categorical_columns(df, user_features=DATA_DEFAULTS["user_features"],
-                                                item_features=DATA_DEFAULTS["item_features"],
-                                                context_features=DATA_DEFAULTS["context_features"])
+    categoricla_columns = build_categorical_columns(df, feature_names=DATA_DEFAULTS["feature_names"])
     embedding_columns = [tf.feature_column.embedding_column(col, args.embedding_size)
-                         for columns in feature_columns.values()
-                         for col in columns]
-    logger.debug("feature columns built.")
+                         for col in categoricla_columns]
 
     # clean up model directory
     shutil.rmtree(args.model_dir, ignore_errors=True)
@@ -29,11 +25,10 @@ def train_main(args):
         hidden_units=args.hidden_units,
         feature_columns=embedding_columns,
         model_dir=args.model_dir,
-        n_classes=DATA_DEFAULTS["n_classes"],
         dropout=args.dropout
     )
-    logger.debug("model built.")
 
+    logger.debug("model training started.")
     for n in range(args.num_epochs):
         # train model
         model.train(input_fn=lambda: tf_csv_dataset(args.train_csv, DATA_DEFAULTS["label"], shuffle=True))
