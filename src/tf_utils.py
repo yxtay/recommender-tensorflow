@@ -71,3 +71,51 @@ def dd_create_categorical_column(df: dd.DataFrame, col: str, default_value: int 
         default_value=default_value,
         num_oov_buckets=num_oov_buckets
     )
+
+
+def layer_summary(value: tf.Tensor) -> None:
+    tf.summary.scalar("fraction_of_zero_values", tf.nn.zero_fraction(value))
+    tf.summary.histogram("activation", value)
+
+
+def get_binary_predictions(logits: tf.Tensor) -> Dict[str, tf.Tensor]:
+    with tf.name_scope("predictions"):
+        logistic = tf.sigmoid(logits)
+
+    predictions = {
+        "logits": logits,
+        "logistic": logistic
+    }
+    return predictions
+
+
+def get_binary_losses(labels: tf.Tensor, logits: tf.Tensor) -> Dict[str, tf.Tensor]:
+    with tf.name_scope("losses"):
+        labels = tf.expand_dims(labels, -1)
+        unreduced_loss = tf.losses.sigmoid_cross_entropy(labels, logits, reduction=tf.losses.Reduction.NONE)
+        average_loss = tf.reduce_mean(unreduced_loss)
+        loss = tf.reduce_sum(unreduced_loss)
+
+    losses = {
+        "unreduced_loss": unreduced_loss,
+        "average_loss": average_loss,
+        "loss": loss,
+    }
+    return losses
+
+
+def get_binary_metrics(labels: tf.Tensor, logistic: tf.Tensor, unreduced_loss: tf.Tensor) -> Dict[str, tf.Tensor]:
+    with tf.name_scope("metrics"):
+        labels = tf.expand_dims(labels, -1)
+        average_loss = tf.metrics.mean(unreduced_loss)
+        accuracy = tf.metrics.accuracy(labels, logistic > 0.5, name="accuracy")
+        auc = tf.metrics.auc(labels, logistic, name="auc")
+        auc_precision_recall = tf.metrics.auc(labels, logistic, curve="PR", name="auc_precision_recall")
+
+    metrics = {
+        "accuracy": accuracy,
+        "auc": auc,
+        "auc_precision_recall": auc_precision_recall,
+        "average_loss": average_loss,
+    }
+    return metrics

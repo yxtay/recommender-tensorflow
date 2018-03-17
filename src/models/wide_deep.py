@@ -12,20 +12,20 @@ from src.utils import PROJECT_DIR
 
 
 def train_main(args):
-    # build feature columns
+    # define feature columns
     df = dd.read_csv(args.train_csv, dtype=DATA_DEFAULTS["dtype"]).persist()
     categorical_columns = build_categorical_columns(df, feature_names=DATA_DEFAULTS["feature_names"])
-    linear_columns = [tf.feature_column.indicator_column(col)
+    indicator_columns = [tf.feature_column.indicator_column(col)
                       for col in categorical_columns]
     embedding_columns = [tf.feature_column.embedding_column(col, args.embedding_size)
                          for col in categorical_columns]
 
     # clean up model directory
     shutil.rmtree(args.model_dir, ignore_errors=True)
-    # build model
+    # define model
     model = tf.estimator.DNNLinearCombinedClassifier(
         model_dir=args.model_dir,
-        linear_feature_columns=linear_columns,
+        linear_feature_columns=indicator_columns,
         dnn_feature_columns=embedding_columns,
         dnn_hidden_units=args.hidden_units,
         dnn_dropout=args.dropout,
@@ -34,9 +34,18 @@ def train_main(args):
     logger.debug("model training started.")
     for n in range(args.num_epochs):
         # train model
-        model.train(input_fn=lambda: tf_csv_dataset(args.train_csv, DATA_DEFAULTS["label"], shuffle=True))
+        model.train(
+            input_fn=lambda: tf_csv_dataset(args.train_csv,
+                                            DATA_DEFAULTS["label"],
+                                            shuffle=True,
+                                            batch_size=args.batch_size)
+        )
         # evaluate model
-        results = model.evaluate(input_fn=lambda: tf_csv_dataset(args.test_csv, DATA_DEFAULTS["label"]))
+        results = model.evaluate(
+            input_fn=lambda: tf_csv_dataset(args.test_csv,
+                                            DATA_DEFAULTS["label"],
+                                            batch_size=args.batch_size)
+        )
         logger.info("epoch %s: %s.", n, results)
 
 
@@ -49,12 +58,12 @@ if __name__ == '__main__':
     parser.add_argument("--model-dir", default="checkpoints/wide_deep",
                         help="model directory (default: %(default)s)")
     parser.add_argument("--embedding-size", type=int, default=16,
-                        help="character embedding size (default: %(default)s)")
+                        help="embedding size (default: %(default)s)")
     parser.add_argument("--hidden-units", type=int, nargs='+', default=[64, 64, 64],
                         help="hidden layer specification (default: %(default)s)")
     parser.add_argument("--dropout", type=float, default=0.1,
                         help="dropout rate (default: %(default)s)")
-    parser.add_argument("--batch-size", type=int, default=1024,
+    parser.add_argument("--batch-size", type=int, default=32,
                         help="batch size (default: %(default)s)")
     parser.add_argument("--num-epochs", type=int, default=16,
                         help="number of training epochs (default: %(default)s)")
