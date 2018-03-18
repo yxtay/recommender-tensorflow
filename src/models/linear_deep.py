@@ -29,6 +29,7 @@ def train_main(args):
         dnn_feature_columns=embedding_columns,
         dnn_hidden_units=args.hidden_units,
         dnn_dropout=args.dropout,
+        # fix_global_step_increment_bug=True
     )
 
     logger.debug("model training started.")

@@ -15,9 +15,9 @@ from src.utils import PROJECT_DIR
 def model_fn(features: Dict[str, tf.Tensor], labels: tf.Tensor, mode, params: Dict) -> tf.estimator.EstimatorSpec:
     categorical_columns = params.get("categorical_columns", [])
     numeric_columns = params.get("numeric_columns", [])
-    linear = params.get("linear", True)
-    fm = params.get("fm", True)
-    dnn = params.get("dnn", True)
+    use_linear = params.get("use_linear", True)
+    use_mf = params.get("use_mf", True)
+    use_dnn = params.get("use_dnn", True)
     embedding_size = params.get("embedding_size", 16)
     hidden_units = params.get("hidden_units", [64, 64, 64])
     activation_fn = params.get("activation", tf.nn.relu)
@@ -25,7 +25,7 @@ def model_fn(features: Dict[str, tf.Tensor], labels: tf.Tensor, mode, params: Di
     learning_rate = params.get("learning_rate", 0.001)
 
     logits = 0
-    if linear:
+    if use_linear:
         with tf.variable_scope("linear"):
             linear_logit = tf.feature_column.linear_model(
                 features,
@@ -38,15 +38,15 @@ def model_fn(features: Dict[str, tf.Tensor], labels: tf.Tensor, mode, params: Di
                 layer_summary(linear_logit)
             logits += linear_logit
 
-    if fm or dnn:
-        # create embedding input only if fm or dnn present
+    if use_mf or use_dnn:
+        # create embedding input only if mf or dnn present
         embedding_columns = [tf.feature_column.embedding_column(col, embedding_size)
                              for col in categorical_columns]
         embedding_input = tf.feature_column.input_layer(features, embedding_columns)
         # [None, d * embedding_size]
 
-        if fm:
-            with tf.variable_scope("fm"):
+        if use_mf:
+            with tf.variable_scope("mf"):
                 # reshape flat embedding input layer to matrix
                 embedding_mat = tf.reshape(embedding_input, [-1, len(embedding_columns), embedding_size])
                 # [None, d, embedding_size]
@@ -56,13 +56,13 @@ def model_fn(features: Dict[str, tf.Tensor], labels: tf.Tensor, mode, params: Di
                 # [None, embedding_size]
 
                 with tf.name_scope("logits"):
-                    fm_logit = tf.multiply(tf.reduce_sum(tf.subtract(sum_square, square_sum), 1, keepdims=True), 0.5)
+                    mf_logit = tf.multiply(tf.reduce_sum(tf.subtract(sum_square, square_sum), 1, keepdims=True), 0.5)
                     # [None, 1]
 
-                    layer_summary(fm_logit)
-                logits += fm_logit
+                    layer_summary(mf_logit)
+                logits += mf_logit
 
-        if dnn:
+        if use_dnn:
             with tf.variable_scope("dnn/dnn"):
                 net = embedding_input
                 # [None, d * embedding_size]
@@ -132,9 +132,9 @@ def train_main(args):
         args.model_dir,
         params={
             "categorical_columns": categorical_columns,
-            "linear": args.linear,
-            "fm": args.fm,
-            "dnn": args.dnn,
+            "use_linear": not args.exclude_linear,
+            "use_mf": not args.exclude_mf,
+            "use_dnn": not args.exclude_dnn,
             "embedding_size": args.embedding_size,
             "hidden_units": args.hidden_units,
             "dropout": args.dropout,
@@ -167,11 +167,11 @@ if __name__ == '__main__':
                         help="path to the test csv data (default: %(default)s)")
     parser.add_argument("--model-dir", default="checkpoints/deep_fm",
                         help="model directory (default: %(default)s)")
-    parser.add_argument("--linear", action="store_false",
+    parser.add_argument("--exclude-linear", action="store_true",
                         help="flag to exclude linear component (default: %(default)s)")
-    parser.add_argument("--fm", action="store_false",
-                        help="flag to exclude fm component (default: %(default)s)")
-    parser.add_argument("--dnn", action="store_false",
+    parser.add_argument("--exclude-mf", action="store_true",
+                        help="flag to exclude mf component (default: %(default)s)")
+    parser.add_argument("--exclude-dnn", action="store_true",
                         help="flag to exclude dnn component (default: %(default)s)")
     parser.add_argument("--embedding-size", type=int, default=16,
                         help="embedding size (default: %(default)s)")

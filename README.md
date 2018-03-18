@@ -6,8 +6,8 @@ This repository attempts to implement models for recommendation engines in Tenso
 
 - Linear classifer: [`linear.py`](src/models/linear.py)
 - DNN classifier: [`deep.py`](src/models/deep.py)
-- DNN classifier: [`wide_deep.py`](src/models/wide_deep.py)
-- Factorisation machine
+- Linear & DNN classifier: [`linear_deep.py`](src/models/linear_deep.py)
+- Factorization machine
 - DeepFM: [`deep_fm.py`](src/models/deep_fm.py)
 
 ### DeepFM
@@ -19,8 +19,8 @@ TODO: Elaborate on model parameters for DeepFM.
 python -m src.models.deep_fm -h
 
 usage: deep_fm.py [-h] [--train-csv TRAIN_CSV] [--test-csv TEST_CSV]
-                  [--model-dir MODEL_DIR] [--linear] [--fm] [--dnn]
-                  [--embedding-size EMBEDDING_SIZE]
+                  [--model-dir MODEL_DIR] [--exclude-linear] [--exclude-mf]
+                  [--exclude-dnn] [--embedding-size EMBEDDING_SIZE]
                   [--hidden-units HIDDEN_UNITS [HIDDEN_UNITS ...]]
                   [--dropout DROPOUT] [--batch-size BATCH_SIZE]
                   [--num-epochs NUM_EPOCHS] [--log-path LOG_PATH]
@@ -34,9 +34,9 @@ optional arguments:
                         data/ml-100k/test.csv)
   --model-dir MODEL_DIR
                         model directory (default: checkpoints/deep_fm)
-  --linear              flag to exclude linear component (default: True)
-  --fm                  flag to exclude fm component (default: True)
-  --dnn                 flag to exclude dnn component (default: True)
+  --exclude-linear      flag to exclude linear component (default: False)
+  --exclude-mf          flag to exclude mf component (default: False)
+  --exclude-dnn         flag to exclude dnn component (default: False)
   --embedding-size EMBEDDING_SIZE
                         embedding size (default: 16)
   --hidden-units HIDDEN_UNITS [HIDDEN_UNITS ...]
