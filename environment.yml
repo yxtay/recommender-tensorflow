@@ -2,7 +2,7 @@ name: dl
 channels:
 - defaults
 dependencies:
-- anaconda
+- anaconda=4.4.0
 - python=3.6
 - pip:
-  - tensorflow
+  - tensorflow=1.6.0

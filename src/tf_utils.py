@@ -56,7 +56,7 @@ def tf_csv_dataset(csv_path: str, label_col: str, col_defaults: Dict = {},
         return features, label
 
     # read, parse, shuffle and batch dataset
-    dataset = tf.data.TextLineDataset(csv_path).skip(1)
+    dataset = tf.data.TextLineDataset(csv_path).skip(1)  # skip header
     if shuffle:
         dataset = dataset.shuffle(buffer_size=1024)
     dataset = dataset.map(parse_csv, num_parallel_calls=8)
@@ -81,18 +81,22 @@ def layer_summary(value: tf.Tensor) -> None:
 def get_binary_predictions(logits: tf.Tensor) -> Dict[str, tf.Tensor]:
     with tf.name_scope("predictions"):
         logistic = tf.sigmoid(logits)
+        class_ids = tf.cast(logistic > 0.5, tf.int32)
 
     predictions = {
         "logits": logits,
-        "logistic": logistic
+        "logistic": logistic,
+        "probabilities": logistic,
+        "class_id": class_ids,
     }
     return predictions
 
 
-def get_binary_losses(labels: tf.Tensor, logits: tf.Tensor) -> Dict[str, tf.Tensor]:
+def get_binary_losses(labels: tf.Tensor, predictions: Dict[str, tf.Tensor]) -> Dict[str, tf.Tensor]:
     with tf.name_scope("losses"):
         labels = tf.expand_dims(labels, -1)
-        unreduced_loss = tf.losses.sigmoid_cross_entropy(labels, logits, reduction=tf.losses.Reduction.NONE)
+        unreduced_loss = tf.losses.sigmoid_cross_entropy(labels, predictions["logits"],
+                                                         reduction=tf.losses.Reduction.NONE)
         average_loss = tf.reduce_mean(unreduced_loss)
         loss = tf.reduce_sum(unreduced_loss)
 
@@ -104,13 +108,15 @@ def get_binary_losses(labels: tf.Tensor, logits: tf.Tensor) -> Dict[str, tf.Tens
     return losses
 
 
-def get_binary_metrics(labels: tf.Tensor, logistic: tf.Tensor, unreduced_loss: tf.Tensor) -> Dict[str, tf.Tensor]:
+def get_binary_metric_ops(labels: tf.Tensor, predictions: Dict[str, tf.Tensor],
+                          losses: Dict[str, tf.Tensor]) -> Dict[str, tf.Tensor]:
     with tf.name_scope("metrics"):
         labels = tf.expand_dims(labels, -1)
-        average_loss = tf.metrics.mean(unreduced_loss)
-        accuracy = tf.metrics.accuracy(labels, logistic > 0.5, name="accuracy")
-        auc = tf.metrics.auc(labels, logistic, name="auc")
-        auc_precision_recall = tf.metrics.auc(labels, logistic, curve="PR", name="auc_precision_recall")
+        average_loss = tf.metrics.mean(losses["unreduced_loss"])
+        accuracy = tf.metrics.accuracy(labels, predictions["class_id"], name="accuracy")
+        auc = tf.metrics.auc(labels, predictions["probabilities"], name="auc")
+        auc_precision_recall = tf.metrics.auc(labels, predictions["probabilities"],
+                                              curve="PR", name="auc_precision_recall")
 
     metrics = {
         "accuracy": accuracy,
@@ -119,3 +125,18 @@ def get_binary_metrics(labels: tf.Tensor, logistic: tf.Tensor, unreduced_loss: t
         "average_loss": average_loss,
     }
     return metrics
+
+
+def get_train_op(loss: tf.Tensor, optimizer_name: str = "Adam", learning_rate: float = 0.001) -> tf.Operation:
+    optimizer_classes = {
+        "Adagrad": tf.train.AdagradOptimizer,
+        "Adam": tf.train.AdamOptimizer,
+        "Ftrl": tf.train.FtrlOptimizer,
+        "RMSProp": tf.train.RMSPropOptimizer,
+        "SGD": tf.train.GradientDescentOptimizer,
+    }
+
+    with tf.name_scope("train"):
+        optimizer = optimizer_classes[optimizer_name](learning_rate=learning_rate)
+        train_op = optimizer.minimize(loss, global_step=tf.train.get_global_step())
+    return train_op

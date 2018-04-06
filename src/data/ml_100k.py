@@ -11,11 +11,10 @@ import tensorflow as tf
 
 from src.logger import get_logger
 from src.tf_utils import dd_tfrecord, dd_create_categorical_column
-from src.utils import PROJECT_DIR
 
 logger = get_logger(__name__)
 
-FILES_CONFIG = {
+FILE_CONFIG = {
     "users": {"filename": "u.user", "sep": "|", "columns": ["user_id", "age", "gender", "occupation", "zipcode"]},
     "items": {"filename": "u.item", "sep": "|",
               "columns": ["item_id", "title", "release", "video_release", "imdb", "unknown", "action", "adventure",
@@ -26,9 +25,14 @@ FILES_CONFIG = {
     "test": {"filename": "ua.test", "sep": "\t", "columns": ["user_id", "item_id", "rating", "timestamp"]},
 }
 
-DATA_DEFAULTS = {
+DATA_DEFAULT = {
     "data_dir": "data/ml-100k",
     "label": "label",
+    "categorical_columns": ["user_id", "age", "gender", "occupation", "zipcode", "zipcode1", "zipcode2", "zipcode3",
+                            "item_id", "unknown", "action", "adventure", "animation", "children", "comedy", "crime",
+                            "documentary", "drama", "fantasy", "filmnoir", "horror", "musical", "mystery", "romance",
+                            "scifi", "thriller", "war", "western", "release_year",
+                            "year", "month", "day", "week", "dayofweek"],
     "feature_names": ["user_id", "age", "gender", "occupation", "zipcode", "zipcode1", "zipcode2", "zipcode3",
                       "item_id", "action", "adventure", "animation", "children", "comedy", "crime",
                       "documentary", "drama", "fantasy", "filmnoir", "horror", "musical", "mystery",
@@ -36,10 +40,10 @@ DATA_DEFAULTS = {
                       "year", "month", "day", "week", "dayofweek"],
     "dtype": {"zipcode": object, "zipcode1": object, "zipcode2": object, "zipcode3": object}
 }
-DATA_DEFAULTS.update({
-    "all_csv": str(Path(DATA_DEFAULTS["data_dir"], "all.csv")),
-    "train_csv": str(Path(DATA_DEFAULTS["data_dir"], "train.csv")),
-    "test_csv": str(Path(DATA_DEFAULTS["data_dir"], "test.csv"))
+DATA_DEFAULT.update({
+    "all_csv": str(Path(DATA_DEFAULT["data_dir"], "all.csv")),
+    "train_csv": str(Path(DATA_DEFAULT["data_dir"], "train.csv")),
+    "test_csv": str(Path(DATA_DEFAULT["data_dir"], "test.csv"))
 })
 
 
@@ -67,7 +71,7 @@ def download_data(url: str = "http://files.grouplens.org/datasets/movielens/ml-1
 def load_data(src_dir: str = "data/ml-100k") -> Dict[str, dd.DataFrame]:
     data = {item: dd.read_csv(str(Path(src_dir, conf["filename"])), sep=conf["sep"],
                               header=None, names=conf["columns"], encoding="latin-1")
-            for item, conf in FILES_CONFIG.items()}
+            for item, conf in FILE_CONFIG.items()}
 
     logger.info("data loaded.")
     return data
@@ -125,16 +129,12 @@ def save_data(dfs: Dict[str, dd.DataFrame], save_dir: str = "data/ml-100k") -> N
 
 
 def build_categorical_columns(df: dd.DataFrame,
-                              feature_names: Iterable[str] = DATA_DEFAULTS["feature_names"]) -> Iterable:
+                              feature_names: Iterable[str] = DATA_DEFAULT["feature_names"]) -> Iterable:
     # categorical columns
     columns_dict = {
-        col: dd_create_categorical_column(df, col, num_oov_buckets=1)
-        for col in ["user_id", "age", "gender", "occupation", "zipcode", "zipcode1", "zipcode2", "zipcode3",
-                    "item_id", "unknown", "action", "adventure", "animation", "children", "comedy", "crime",
-                    "documentary", "drama", "fantasy", "filmnoir", "horror", "musical", "mystery", "romance",
-                    "scifi", "thriller", "war", "western", "release_year",
-                    "year", "month", "day", "week", "dayofweek"]
-        }
+        col: dd_create_categorical_column(df, col)
+        for col in DATA_DEFAULT["categorical_columns"]
+    }
 
     # bucketized columns
     columns_dict["age_bucket"] = tf.feature_column.bucketized_column(
@@ -156,7 +156,7 @@ if __name__ == "__main__":
                         help="url of MovieLens 100k data (default: %(default)s)")
     parser.add_argument("--dest", default="data",
                         help="destination directory for downloaded and extracted files (default: %(default)s)")
-    parser.add_argument("--log-path", default=str(PROJECT_DIR / "main.log"),
+    parser.add_argument("--log-path", default="main.log",
                         help="path of log file (default: %(default)s)")
     args = parser.parse_args()
 

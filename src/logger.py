@@ -4,10 +4,10 @@ from pathlib import Path
 from typing import Iterable
 import sys
 
-from src.utils import PROJECT_DIR, make_dirs
+from src.utils import make_dirs
 
 
-def get_logger(name: str, log_path: str = str(PROJECT_DIR / "main.log"),
+def get_logger(name: str, log_path: str = "main.log",
                console: bool = False) -> logging.Logger:
     """
     Simple logging wrapper that returns logger

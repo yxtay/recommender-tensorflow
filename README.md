@@ -1,6 +1,6 @@
 # Recommendation Models in TensorFlow
 
-This repository attempts to implement models for recommendation engines in TensorFlow using the Estimators API with feature columns. 
+This repository attempts to implement models for recommendation engines in TensorFlow using the Estimator API with feature columns. 
 
 ## Models
 

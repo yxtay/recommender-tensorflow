@@ -5,16 +5,15 @@ import sys
 import dask.dataframe as dd
 import tensorflow as tf
 
-from src.data.ml_100k import DATA_DEFAULTS, build_categorical_columns
+from src.data.ml_100k import DATA_DEFAULT, build_categorical_columns
 from src.logger import get_logger
 from src.tf_utils import tf_csv_dataset
-from src.utils import PROJECT_DIR
 
 
 def train_main(args):
     # define feature columns
-    df = dd.read_csv(args.train_csv, dtype=DATA_DEFAULTS["dtype"]).persist()
-    categorical_columns = build_categorical_columns(df, feature_names=DATA_DEFAULTS["feature_names"])
+    df = dd.read_csv(args.train_csv, dtype=DATA_DEFAULT["dtype"]).persist()
+    categorical_columns = build_categorical_columns(df, feature_names=DATA_DEFAULT["feature_names"])
     indicator_columns = [tf.feature_column.indicator_column(col)
                       for col in categorical_columns]
     embedding_columns = [tf.feature_column.embedding_column(col, args.embedding_size)
@@ -37,14 +36,14 @@ def train_main(args):
         # train model
         model.train(
             input_fn=lambda: tf_csv_dataset(args.train_csv,
-                                            DATA_DEFAULTS["label"],
+                                            DATA_DEFAULT["label"],
                                             shuffle=True,
                                             batch_size=args.batch_size)
         )
         # evaluate model
         results = model.evaluate(
             input_fn=lambda: tf_csv_dataset(args.test_csv,
-                                            DATA_DEFAULTS["label"],
+                                            DATA_DEFAULT["label"],
                                             batch_size=args.batch_size)
         )
         logger.info("epoch %s: %s.", n, results)
@@ -52,9 +51,9 @@ def train_main(args):
 
 if __name__ == '__main__':
     parser = ArgumentParser()
-    parser.add_argument("--train-csv", default=str(PROJECT_DIR / DATA_DEFAULTS["train_csv"]),
+    parser.add_argument("--train-csv", default=DATA_DEFAULT["train_csv"],
                         help="path to the training csv data (default: %(default)s)")
-    parser.add_argument("--test-csv", default=str(PROJECT_DIR / DATA_DEFAULTS["test_csv"]),
+    parser.add_argument("--test-csv", default=DATA_DEFAULT["test_csv"],
                         help="path to the test csv data (default: %(default)s)")
     parser.add_argument("--model-dir", default="checkpoints/wide_deep",
                         help="model directory (default: %(default)s)")
@@ -68,7 +67,7 @@ if __name__ == '__main__':
                         help="batch size (default: %(default)s)")
     parser.add_argument("--num-epochs", type=int, default=16,
                         help="number of training epochs (default: %(default)s)")
-    parser.add_argument("--log-path", default=str(PROJECT_DIR / "main.log"),
+    parser.add_argument("--log-path", default="main.log",
                         help="path of log file (default: %(default)s)")
     args = parser.parse_args()
 
