@@ -1,7 +1,7 @@
-from argparse import ArgumentParser
-import sys
-from pathlib import Path
 import shutil
+import sys
+from argparse import ArgumentParser
+from pathlib import Path
 from typing import Dict, Iterable
 from zipfile import ZipFile
 
@@ -9,6 +9,7 @@ import dask.dataframe as dd
 import requests
 import tensorflow as tf
 
+from src.gcp_utils import get_credentials, df_upload_bigquery
 from src.logger import get_logger
 from src.tf_utils import dd_tfrecord, dd_create_categorical_column
 
@@ -128,6 +129,10 @@ def save_data(dfs: Dict[str, dd.DataFrame], save_dir: str = "data/ml-100k") -> N
         dd_tfrecord(df, str(Path(save_dir, name + ".tfrecord")))
 
 
+def beam_process_data():
+    pass
+
+
 def build_categorical_columns(df: dd.DataFrame,
                               feature_names: Iterable[str] = DATA_DEFAULT["feature_names"]) -> Iterable:
     # categorical columns
@@ -150,14 +155,50 @@ def build_categorical_columns(df: dd.DataFrame,
     return categorical_columns
 
 
+def local_main(args):
+    download_data(args.url, args.dest)
+    data_dir = str(Path(args.dest, "ml-100k"))
+    data = load_data(data_dir)
+    dfs = process_data(data)
+    save_data(dfs, data_dir)
+
+
+def gcp_main(args):
+    download_data(args.url, args.dest)
+    data_dir = str(Path(args.dest, "ml-100k"))
+    data = load_data(data_dir)
+    credentials = get_credentials(args.credentials)
+
+    for name, df in data.items():
+        df_upload_bigquery(df, "test", name, credentials)
+
+
 if __name__ == "__main__":
     parser = ArgumentParser(description="Download, extract and prepare MovieLens 100k data.")
-    parser.add_argument("--url", default="http://files.grouplens.org/datasets/movielens/ml-100k.zip",
-                        help="url of MovieLens 100k data (default: %(default)s)")
-    parser.add_argument("--dest", default="data",
-                        help="destination directory for downloaded and extracted files (default: %(default)s)")
-    parser.add_argument("--log-path", default="main.log",
-                        help="path of log file (default: %(default)s)")
+    subparsers = parser.add_subparsers(title="subcommands")
+
+    # local download and preprocess
+    local_parser = subparsers.add_parser("local")
+    local_parser.add_argument("--url", default="http://files.grouplens.org/datasets/movielens/ml-100k.zip",
+                              help="url of MovieLens 100k data (default: %(default)s)")
+    local_parser.add_argument("--dest", default="data",
+                              help="destination directory for downloaded and extracted files (default: %(default)s)")
+    local_parser.add_argument("--log-path", default="main.log",
+                              help="path of log file (default: %(default)s)")
+    local_parser.set_defaults(main=local_main)
+
+    # gcp upload
+    gcp_parser = subparsers.add_parser("gcp")
+    gcp_parser.add_argument("--url", default="http://files.grouplens.org/datasets/movielens/ml-100k.zip",
+                            help="url of MovieLens 100k data (default: %(default)s)")
+    gcp_parser.add_argument("--dest", default="data",
+                            help="destination directory for downloaded and extracted files (default: %(default)s)")
+    gcp_parser.add_argument("--credentials", required=True,
+                            help="json file containing google cloud credentials")
+    gcp_parser.add_argument("--log-path", default="main.log",
+                            help="path of log file (default: %(default)s)")
+    gcp_parser.set_defaults(main=gcp_main)
+
     args = parser.parse_args()
 
     logger = get_logger(__name__, log_path=args.log_path, console=True)
@@ -165,11 +206,7 @@ if __name__ == "__main__":
     logger.debug("ArgumentParser: %s.", args)
 
     try:
-        data_dir = str(Path(args.dest, "ml-100k"))
-        download_data(args.url, args.dest)
-        data = load_data(data_dir)
-        dfs = process_data(data)
-        save_data(dfs, data_dir)
+        args.main(args)
 
     except Exception as e:
         logger.exception(e)
