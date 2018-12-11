@@ -4,11 +4,10 @@ This repository attempts to implement models for recommendation engines in Tenso
 
 ## Models
 
-- Linear classifer: [`linear.py`](src/models/linear.py)
-- DNN classifier: [`deep.py`](src/models/deep.py)
-- Linear & DNN classifier: [`linear_deep.py`](src/models/linear_deep.py)
-- Factorization machine
-- DeepFM: [`deep_fm.py`](src/models/deep_fm.py)
+- Linear classifer: [`linear.py`](trainers/linear.py)
+- DNN classifier: [`deep.py`](trainers/deep.py)
+- Linear & DNN classifier: [`linear_deep.py`](trainers/linear_deep.py)
+- DeepFM: [`deep_fm.py`](trainers/deep_fm.py)
 
 ### DeepFM
 
@@ -16,38 +15,37 @@ TODO: Elaborate on model parameters for DeepFM.
 
 **Usage**
 ```
-python -m src.models.deep_fm -h
+python -m trainers.deep_fm -h
 
 usage: deep_fm.py [-h] [--train-csv TRAIN_CSV] [--test-csv TEST_CSV]
-                  [--model-dir MODEL_DIR] [--exclude-linear] [--exclude-mf]
-                  [--exclude-dnn] [--embedding-size EMBEDDING_SIZE]
+                  [--job-dir JOB_DIR] [--restore] [--exclude-linear]
+                  [--exclude-mf] [--exclude-dnn]
+                  [--embedding-size EMBEDDING_SIZE]
                   [--hidden-units HIDDEN_UNITS [HIDDEN_UNITS ...]]
                   [--dropout DROPOUT] [--batch-size BATCH_SIZE]
-                  [--num-epochs NUM_EPOCHS] [--log-path LOG_PATH]
+                  [--train-steps TRAIN_STEPS]
 
 optional arguments:
   -h, --help            show this help message and exit
   --train-csv TRAIN_CSV
-                        path to the training csv data (default:
-                        data/ml-100k/train.csv)
-  --test-csv TEST_CSV   path to the test csv data (default:
-                        data/ml-100k/test.csv)
-  --model-dir MODEL_DIR
-                        model directory (default: checkpoints/deep_fm)
+                        path to the training csv data (default: data/ml-
+                        100k/train.csv)
+  --test-csv TEST_CSV   path to the test csv data (default: data/ml-
+                        100k/test.csv)
+  --job-dir JOB_DIR     job directory (default: checkpoints/deep_fm)
+  --restore             whether to restore from job_dir
   --exclude-linear      flag to exclude linear component (default: False)
   --exclude-mf          flag to exclude mf component (default: False)
   --exclude-dnn         flag to exclude dnn component (default: False)
   --embedding-size EMBEDDING_SIZE
-                        embedding size (default: 16)
+                        embedding size (default: 4)
   --hidden-units HIDDEN_UNITS [HIDDEN_UNITS ...]
-                        hidden layer specification (default: [64, 64, 64])
+                        hidden layer specification (default: [16, 16])
   --dropout DROPOUT     dropout rate (default: 0.1)
   --batch-size BATCH_SIZE
                         batch size (default: 32)
-  --num-epochs NUM_EPOCHS
-                        number of training epochs (default: 16)
-  --log-path LOG_PATH   path of log file (default:
-                        main.log)
+  --train-steps TRAIN_STEPS
+                        number of training steps (default: 20000)
 ```
 
 ## Setup
@@ -64,30 +62,28 @@ source activate dl
 ```
 ## Download & Process Data
 
-The [MovieLens 100K Dataset](https://grouplens.org/datasets/movielens/100k/) is used for demonstration purpose. The following script downloads the data, processes and enriches it with a few basic features and serialises it to `csv` and `tfrecords`.
+The [MovieLens 100K Dataset](https://grouplens.org/datasets/movielens/100k/) is used for demonstration purpose. The following script downloads the data, processes and enriches it with a few basic features and serialises it to `csv`.
 
 ```bash
 # downloads and processes movielens 100k dataset
-python -m src.data.ml_100k
+python -m src.data.ml_100k local
 ```
 
 **Usage**
 
 ```
-python -m src.data.ml_100k
+python -m src.data.ml_100k local -h
 
-usage: ml_100k.py [-h] [--url URL] [--dest DEST] [--log-path LOG_PATH]
-
-Download, extract and prepare MovieLens 100k data.
+usage: ml_100k.py local [-h] [--url URL] [--dest DEST] [--log-path LOG_PATH]
 
 optional arguments:
   -h, --help           show this help message and exit
-  --url URL            url of MovieLens 100k data (default: http://files.group
-                       lens.org/datasets/movielens/ml-100k.zip)
+  --url URL            url of MovieLens 100k data (default:
+                       http://files.grouplens.org/datasets/movielens/ml-
+                       100k.zip)
   --dest DEST          destination directory for downloaded and extracted
                        files (default: data)
-  --log-path LOG_PATH  path of log file (default:
-                       main.log)
+  --log-path LOG_PATH  path of log file (default: main.log)
 ```
 
 ## References

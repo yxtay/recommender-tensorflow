@@ -1,8 +1,11 @@
 name: dl
 channels:
 - defaults
+- conda-forge
 dependencies:
-- anaconda=4.4.0
+- anaconda=5.3
+- google-api-core=1.1
+- google-auth=1.6
+- google-cloud-bigquery=1.7
 - python=3.6
-- pip:
-  - tensorflow=1.6.0
+- tensorflow=1.12
