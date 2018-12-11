@@ -2,7 +2,6 @@ import shutil
 import sys
 from argparse import ArgumentParser
 from pathlib import Path
-from typing import Dict, Iterable
 from zipfile import ZipFile
 
 import dask.dataframe as dd
@@ -11,7 +10,8 @@ import tensorflow as tf
 
 from src.gcp_utils import get_credentials, df_upload_bigquery
 from src.logger import get_logger
-from src.tf_utils import dd_tfrecord, dd_create_categorical_column
+from src.tf_utils import dd_create_categorical_column
+from src.utils import make_dirs
 
 logger = get_logger(__name__)
 
@@ -48,11 +48,11 @@ DATA_DEFAULT.update({
 })
 
 
-def download_data(url: str = "http://files.grouplens.org/datasets/movielens/ml-100k.zip",
-                  dest_dir: str = "data"):
+def download_data(url="http://files.grouplens.org/datasets/movielens/ml-100k.zip",
+                  dest_dir="data"):
     # prepare destination
     dest = Path(dest_dir) / Path(url).name
-    dest.parent.mkdir(parents=True, exist_ok=True)
+    make_dirs(dest, isfile=True)
 
     # downlaod zip
     if not dest.exists():
@@ -69,7 +69,7 @@ def download_data(url: str = "http://files.grouplens.org/datasets/movielens/ml-1
         logger.info("file extracted.")
 
 
-def load_data(src_dir: str = "data/ml-100k") -> Dict[str, dd.DataFrame]:
+def load_data(src_dir="data/ml-100k"):
     data = {item: dd.read_csv(str(Path(src_dir, conf["filename"])), sep=conf["sep"],
                               header=None, names=conf["columns"], encoding="latin-1")
             for item, conf in FILE_CONFIG.items()}
@@ -78,7 +78,7 @@ def load_data(src_dir: str = "data/ml-100k") -> Dict[str, dd.DataFrame]:
     return data
 
 
-def process_data(data: Dict[str, dd.DataFrame]) -> Dict[str, dd.DataFrame]:
+def process_data(data):
     # process users
     users = data["users"]
     users["zipcode1"] = users["zipcode"].str.get(0)
@@ -98,7 +98,6 @@ def process_data(data: Dict[str, dd.DataFrame]) -> Dict[str, dd.DataFrame]:
     # process context
     for el in ["all", "train", "test"]:
         context = data[el]
-        context["label"] = (context["rating"] >= 4).astype(int)
         context["datetime"] = dd.to_datetime(context["timestamp"], unit="s")
         context["year"] = context["datetime"].dt.year
         context["month"] = context["datetime"].dt.month
@@ -119,40 +118,12 @@ def process_data(data: Dict[str, dd.DataFrame]) -> Dict[str, dd.DataFrame]:
     return dfs
 
 
-def save_data(dfs: Dict[str, dd.DataFrame], save_dir: str = "data/ml-100k") -> None:
+def save_data(dfs, save_dir="data/ml-100k"):
     for name, df in dfs.items():
         # save csv
         save_path = str(Path(save_dir, name + ".csv"))
-        df.compute().to_csv(save_path, index=False)
+        df.compute().to_csv(save_path, index=False, encoding="utf-8")
         logger.info("data saved: %s.", save_path)
-        # save tfrecord
-        dd_tfrecord(df, str(Path(save_dir, name + ".tfrecord")))
-
-
-def beam_process_data():
-    pass
-
-
-def build_categorical_columns(df: dd.DataFrame,
-                              feature_names: Iterable[str] = DATA_DEFAULT["feature_names"]) -> Iterable:
-    # categorical columns
-    columns_dict = {
-        col: dd_create_categorical_column(df, col)
-        for col in DATA_DEFAULT["categorical_columns"]
-    }
-
-    # bucketized columns
-    columns_dict["age_bucket"] = tf.feature_column.bucketized_column(
-        tf.feature_column.numeric_column("age", dtype=tf.int32),
-        [15, 25, 35, 45, 55, 65]
-    )
-    columns_dict["release_year_bucket"] = tf.feature_column.bucketized_column(
-        tf.feature_column.numeric_column("release_year", dtype=tf.int32),
-        [1930, 1940, 1950, 1960, 1970, 1980, 1990]
-    )
-
-    categorical_columns = [columns_dict[col] for col in feature_names]
-    return categorical_columns
 
 
 def local_main(args):
@@ -170,7 +141,7 @@ def gcp_main(args):
     credentials = get_credentials(args.credentials)
 
     for name, df in data.items():
-        df_upload_bigquery(df, "test", name, credentials)
+        df_upload_bigquery(df, args.dataset, name, credentials)
 
 
 if __name__ == "__main__":
@@ -193,7 +164,9 @@ if __name__ == "__main__":
                             help="url of MovieLens 100k data (default: %(default)s)")
     gcp_parser.add_argument("--dest", default="data",
                             help="destination directory for downloaded and extracted files (default: %(default)s)")
-    gcp_parser.add_argument("--credentials", required=True,
+    gcp_parser.add_argument("--dataset", default="ml_100k",
+                            help="dataset name to save datatables")
+    gcp_parser.add_argument("--credentials", default="credentials.json",
                             help="json file containing google cloud credentials")
     gcp_parser.add_argument("--log-path", default="main.log",
                             help="path of log file (default: %(default)s)")
@@ -207,7 +180,6 @@ if __name__ == "__main__":
 
     try:
         args.main(args)
-
     except Exception as e:
         logger.exception(e)
         raise e

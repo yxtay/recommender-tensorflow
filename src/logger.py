@@ -1,14 +1,12 @@
 import logging
+import sys
 from logging.handlers import RotatingFileHandler
 from pathlib import Path
-from typing import Iterable
-import sys
 
 from src.utils import make_dirs
 
 
-def get_logger(name: str, log_path: str = "main.log",
-               console: bool = False) -> logging.Logger:
+def get_logger(name, log_path="main.log", console=False):
     """
     Simple logging wrapper that returns logger
     configured to log into file and console.
@@ -54,7 +52,7 @@ def get_logger(name: str, log_path: str = "main.log",
     return logger
 
 
-def float_array_string(arr: Iterable[float]) -> str:
+def float_array_string(arr):
     """
     format array of floats to 4 decimal places
 

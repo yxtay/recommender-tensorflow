@@ -1,6 +1,5 @@
-from dask import dataframe as dd
-from google.cloud import bigquery
 from google.api_core import exceptions
+from google.cloud import bigquery
 from google.oauth2 import service_account
 
 from src.logger import get_logger
@@ -12,12 +11,13 @@ def get_credentials(service_account_json):
     scopes = ["https://www.googleapis.com/auth/cloud-platform"]
     credentials = (service_account.Credentials
                    .from_service_account_file(service_account_json, scopes=scopes))
+    logger.info("credentials created from %s.", service_account_json)
     return credentials
 
 
-def df_upload_bigquery(df: dd.DataFrame, dataset_id: str, table_id: str, credentials=None):
+def df_upload_bigquery(df, dataset_id, table_id, credentials=None):
     # get client
-    client = bigquery.Client(credentials=credentials)
+    client = bigquery.Client(project=credentials.project_id, credentials=credentials)
 
     # get or create dataset
     try:
@@ -41,5 +41,5 @@ def df_upload_bigquery(df: dd.DataFrame, dataset_id: str, table_id: str, credent
     )
     # wait for job to complete
     job.result()
-    logger.info('loaded %s rows into %s.%s.%s.', job.output_rows, job.project, dataset_id, table_id)
+    logger.info('%s rows loaded into %s.%s.%s.', job.output_rows, job.project, dataset_id, table_id)
     return table
