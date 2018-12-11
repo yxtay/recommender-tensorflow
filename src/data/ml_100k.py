@@ -6,11 +6,9 @@ from zipfile import ZipFile
 
 import dask.dataframe as dd
 import requests
-import tensorflow as tf
 
 from src.gcp_utils import get_credentials, df_upload_bigquery
 from src.logger import get_logger
-from src.tf_utils import dd_create_categorical_column
 from src.utils import make_dirs
 
 logger = get_logger(__name__)

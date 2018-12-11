@@ -1,18 +1,16 @@
-from argparse import ArgumentParser
 import shutil
-import sys
-from typing import Dict
+from argparse import ArgumentParser
 
-import dask.dataframe as dd
 import tensorflow as tf
 
-from src.data.ml_100k import DATA_DEFAULT, build_categorical_columns
-from src.logger import get_logger
-from src.tf_utils import (tf_csv_dataset, layer_summary, get_binary_predictions, get_binary_losses,
-                          get_binary_metric_ops, get_train_op)
+from trainers.conf_utils import get_run_config, get_train_spec, get_exporter, get_eval_spec
+from trainers.ml_100k import get_feature_columns, get_input_fn, serving_input_fn
+from trainers.model_utils import (layer_summary, get_binary_predictions,
+                                  get_binary_losses, get_binary_metric_ops,
+                                  get_train_op)
 
 
-def model_fn(features: Dict[str, tf.Tensor], labels: tf.Tensor, mode, params: Dict) -> tf.estimator.EstimatorSpec:
+def model_fn(features, labels, mode, params):
     # feature columns
     categorical_columns = params.get("categorical_columns", [])
     numeric_columns = params.get("numeric_columns", [])
@@ -21,8 +19,8 @@ def model_fn(features: Dict[str, tf.Tensor], labels: tf.Tensor, mode, params: Di
     use_mf = params.get("use_mf", True)
     use_dnn = params.get("use_dnn", True)
     # structure params
-    embedding_size = params.get("embedding_size", 16)
-    hidden_units = params.get("hidden_units", [64, 64, 64])
+    embedding_size = params.get("embedding_size", 4)
+    hidden_units = params.get("hidden_units", [16, 16])
     activation_fn = params.get("activation", tf.nn.relu)
     dropout = params.get("dropout", 0)
     # training params
@@ -136,78 +134,122 @@ def model_fn(features: Dict[str, tf.Tensor], labels: tf.Tensor, mode, params: Di
         return tf.estimator.EstimatorSpec(mode=mode, loss=losses["loss"], train_op=train_op)
 
 
-def train_main(args):
-    # define feature columns
-    df = dd.read_csv(args.train_csv, dtype=DATA_DEFAULT["dtype"]).persist()
-    categorical_columns = build_categorical_columns(df, feature_names=DATA_DEFAULT["feature_names"])
+def train_and_evaluate(args):
+    # paths
+    train_csv = args.train_csv
+    test_csv = args.test_csv
+    job_dir = args.job_dir
+    restore = args.restore
+    # model
+    use_linear = not args.exclude_linear,
+    use_mf = not args.exclude_mf,
+    use_dnn = not args.exclude_dnn,
+    embedding_size = args.embedding_size
+    hidden_units = args.hidden_units
+    dropout = args.dropout
+    # training
+    batch_size = args.batch_size
+    train_steps = args.train_steps
 
-    # clean up model directory
-    shutil.rmtree(args.model_dir, ignore_errors=True)
-    # define model
-    model = tf.estimator.Estimator(
-        model_fn,
-        args.model_dir,
+    # init
+    tf.logging.set_verbosity(tf.logging.INFO)
+    if not restore:
+        shutil.rmtree(job_dir, ignore_errors=True)
+
+    # estimator
+    feature_columns = get_feature_columns(embedding_size=embedding_size)
+    run_config = get_run_config()
+    estimator = tf.estimator.Estimator(
+        model_fn=model_fn,
+        model_dir=job_dir,
+        config=run_config,
         params={
-            "categorical_columns": categorical_columns,
-            "use_linear": not args.exclude_linear,
-            "use_mf": not args.exclude_mf,
-            "use_dnn": not args.exclude_dnn,
-            "embedding_size": args.embedding_size,
-            "hidden_units": args.hidden_units,
-            "dropout": args.dropout,
+            "categorical_columns": feature_columns["linear"],
+            "use_linear": use_linear,
+            "use_mf": use_mf,
+            "use_dnn": use_dnn,
+            "embedding_size": embedding_size,
+            "hidden_units": hidden_units,
+            "dropout": dropout,
         }
     )
 
-    logger.debug("model training started.")
-    for n in range(args.num_epochs):
-        # train model
-        model.train(
-            input_fn=lambda: tf_csv_dataset(args.train_csv, DATA_DEFAULT["label"],
-                                            shuffle=True, batch_size=args.batch_size)
-        )
-        # evaluate model
-        results = model.evaluate(
-            input_fn=lambda: tf_csv_dataset(args.test_csv, DATA_DEFAULT["label"],
-                                            batch_size=args.batch_size)
-        )
-        logger.info("epoch %s: %s.", n, results)
+    # train spec
+    train_input_fn = get_input_fn(train_csv, batch_size=batch_size)
+    train_spec = get_train_spec(train_input_fn, train_steps)
+
+    # eval spec
+    eval_input_fn = get_input_fn(test_csv, tf.estimator.ModeKeys.EVAL, batch_size=batch_size)
+    exporter = get_exporter(serving_input_fn)
+    eval_spec = get_eval_spec(eval_input_fn, exporter)
+
+    # train and evaluate
+    tf.estimator.train_and_evaluate(estimator, train_spec, eval_spec)
+
+
+# def train_main(args):
+#     # define feature columns
+#     df = dd.read_csv(args.train_csv, dtype=DATA_DEFAULT["dtype"]).persist()
+#     categorical_columns = build_categorical_columns(df, feature_names=DATA_DEFAULT["feature_names"])
+#
+#     # clean up model directory
+#     shutil.rmtree(args.model_dir, ignore_errors=True)
+#     # define model
+#     model = tf.estimator.Estimator(
+#         model_fn,
+#         args.model_dir,
+#         params={
+#             "categorical_columns": categorical_columns,
+#             "use_linear": not args.exclude_linear,
+#             "use_mf": not args.exclude_mf,
+#             "use_dnn": not args.exclude_dnn,
+#             "embedding_size": args.embedding_size,
+#             "hidden_units": args.hidden_units,
+#             "dropout": args.dropout,
+#         }
+#     )
+#
+#     logger.debug("model training started.")
+#     for n in range(args.num_epochs):
+#         # train model
+#         model.train(
+#             input_fn=lambda: tf_csv_dataset(args.train_csv, DATA_DEFAULT["label"],
+#                                             shuffle=True, batch_size=args.batch_size)
+#         )
+#         # evaluate model
+#         results = model.evaluate(
+#             input_fn=lambda: tf_csv_dataset(args.test_csv, DATA_DEFAULT["label"],
+#                                             batch_size=args.batch_size)
+#         )
+#         logger.info("epoch %s: %s.", n, results)
 
 
 if __name__ == '__main__':
     parser = ArgumentParser()
-    parser.add_argument("--train-csv", default=DATA_DEFAULT["train_csv"],
+    parser.add_argument("--train-csv", default="data/ml-100k/train.csv",
                         help="path to the training csv data (default: %(default)s)")
-    parser.add_argument("--test-csv", default=DATA_DEFAULT["test_csv"],
+    parser.add_argument("--test-csv", default="data/ml-100k/test.csv",
                         help="path to the test csv data (default: %(default)s)")
-    parser.add_argument("--model-dir", default="checkpoints/deep_fm",
-                        help="model directory (default: %(default)s)")
+    parser.add_argument("--job-dir", default="checkpoints/deep_fm",
+                        help="job directory (default: %(default)s)")
+    parser.add_argument("--restore", action="store_true",
+                        help="whether to restore from job_dir")
     parser.add_argument("--exclude-linear", action="store_true",
                         help="flag to exclude linear component (default: %(default)s)")
     parser.add_argument("--exclude-mf", action="store_true",
                         help="flag to exclude mf component (default: %(default)s)")
     parser.add_argument("--exclude-dnn", action="store_true",
                         help="flag to exclude dnn component (default: %(default)s)")
-    parser.add_argument("--embedding-size", type=int, default=16,
+    parser.add_argument("--embedding-size", type=int, default=4,
                         help="embedding size (default: %(default)s)")
-    parser.add_argument("--hidden-units", type=int, nargs='+', default=[64, 64, 64],
+    parser.add_argument("--hidden-units", type=int, nargs='+', default=[16, 16],
                         help="hidden layer specification (default: %(default)s)")
     parser.add_argument("--dropout", type=float, default=0.1,
                         help="dropout rate (default: %(default)s)")
     parser.add_argument("--batch-size", type=int, default=32,
                         help="batch size (default: %(default)s)")
-    parser.add_argument("--num-epochs", type=int, default=16,
-                        help="number of training epochs (default: %(default)s)")
-    parser.add_argument("--log-path", default="main.log",
-                        help="path of log file (default: %(default)s)")
+    parser.add_argument("--train-steps", type=int, default=20000,
+                        help="number of training steps (default: %(default)s)")
     args = parser.parse_args()
 
-    logger = get_logger(__name__, log_path=args.log_path, console=True)
-    logger.debug("call: %s.", " ".join(sys.argv))
-    logger.debug("ArgumentParser: %s.", args)
-    tf.logging.set_verbosity(tf.logging.INFO)
-
-    try:
-        train_main(args)
-    except Exception as e:
-        logger.exception(e)
-        raise e
+    train_and_evaluate(args)
