@@ -187,43 +187,6 @@ def train_and_evaluate(args):
     tf.estimator.train_and_evaluate(estimator, train_spec, eval_spec)
 
 
-# def train_main(args):
-#     # define feature columns
-#     df = dd.read_csv(args.train_csv, dtype=DATA_DEFAULT["dtype"]).persist()
-#     categorical_columns = build_categorical_columns(df, feature_names=DATA_DEFAULT["feature_names"])
-#
-#     # clean up model directory
-#     shutil.rmtree(args.model_dir, ignore_errors=True)
-#     # define model
-#     model = tf.estimator.Estimator(
-#         model_fn,
-#         args.model_dir,
-#         params={
-#             "categorical_columns": categorical_columns,
-#             "use_linear": not args.exclude_linear,
-#             "use_mf": not args.exclude_mf,
-#             "use_dnn": not args.exclude_dnn,
-#             "embedding_size": args.embedding_size,
-#             "hidden_units": args.hidden_units,
-#             "dropout": args.dropout,
-#         }
-#     )
-#
-#     logger.debug("model training started.")
-#     for n in range(args.num_epochs):
-#         # train model
-#         model.train(
-#             input_fn=lambda: tf_csv_dataset(args.train_csv, DATA_DEFAULT["label"],
-#                                             shuffle=True, batch_size=args.batch_size)
-#         )
-#         # evaluate model
-#         results = model.evaluate(
-#             input_fn=lambda: tf_csv_dataset(args.test_csv, DATA_DEFAULT["label"],
-#                                             batch_size=args.batch_size)
-#         )
-#         logger.info("epoch %s: %s.", n, results)
-
-
 if __name__ == '__main__':
     parser = ArgumentParser()
     parser.add_argument("--train-csv", default="data/ml-100k/train.csv",
