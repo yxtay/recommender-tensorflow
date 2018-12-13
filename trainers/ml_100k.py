@@ -4,13 +4,15 @@ COLUMNS = ("user_id,item_id,rating,timestamp,datetime,year,month,day,week,dayofw
            "age,gender,occupation,zipcode,zipcode1,zipcode2,zipcode3,"
            "title,release,video_release,imdb,unknown,action,adventure,animation,children,"
            "comedy,crime,documentary,drama,fantasy,filmnoir,horror,musical,mystery,romance,"
-           "scifi,thriller,war,western,release_year").split(",")
+           "scifi,thriller,war,western,release_date,release_year").split(",")
+GENRE = ("unknown,action,adventure,animation,children,comedy,crime,documentary,drama,fantasy,"
+         "filmnoir,horror,musical,mystery,romance,scifi,thriller,war,western").split(",")
 LABEL_COL = "rating"
 DEFAULTS = [[0], [0], [0], [0], ["null"], [0], [0], [0], [0], [0],
             [0], ["null"], ["null"], ["null"], ["null"], ["null"], ["null"],
             ["null"], ["null"], ["null"], ["null"], [0], [0], [0], [0], [0],
             [0], [0], [0], [0], [0], [0], [0], [0], [0], [0],
-            [0], [0], [0], [0], [0]]
+            [0], [0], [0], [0], ["null"], [0]]
 
 
 def get_feature_columns(embedding_size=4):
@@ -30,13 +32,11 @@ def get_feature_columns(embedding_size=4):
     # item features
     release_year_fc = tf.feature_column.numeric_column("release_year")
     release_year_buckets = tf.feature_column.bucketized_column(release_year_fc, list(range(1930, 1991, 10)))
-    genre = ("unknown,action,adventure,animation,children,comedy,crime,documentary,drama,fantasy,"
-             "filmnoir,horror,musical,mystery,romance,scifi,thriller,war,western").split(",")
-    genre_fc = [tf.feature_column.categorical_column_with_identity(col, 2) for col in genre]
+    genre_fc = [tf.feature_column.categorical_column_with_identity(col, 2) for col in GENRE]
 
-    wide_columns = [user_fc, item_fc, age_buckets, gender_fc, occupation_fc, zipcode_fc, release_year_buckets] + genre_fc
-    deep_columns = [tf.feature_column.embedding_column(fc, embedding_size) for fc in wide_columns]
-    return {"linear": wide_columns, "deep": deep_columns}
+    linear_columns = [user_fc, item_fc, age_buckets, gender_fc, occupation_fc, zipcode_fc, release_year_buckets] + genre_fc
+    deep_columns = [tf.feature_column.embedding_column(fc, embedding_size) for fc in linear_columns]
+    return {"linear": linear_columns, "deep": deep_columns}
 
 
 def get_input_fn(csv_path, mode=tf.estimator.ModeKeys.TRAIN, batch_size=32, cutoff=5):
@@ -73,11 +73,8 @@ def serving_input_fn():
 
         "release_year": tf.placeholder(tf.int32, [None]),
     }
-
-    genre = ("unknown,action,adventure,animation,children,comedy,crime,documentary,drama,fantasy,"
-             "filmnoir,horror,musical,mystery,romance,scifi,thriller,war,western").split(",")
     feature_placeholders.update({
-        col: tf.placeholder_with_default(tf.constant([0]), [None]) for col in genre
+        col: tf.placeholder_with_default(tf.constant([0]), [None]) for col in GENRE
     })
 
     features = {
