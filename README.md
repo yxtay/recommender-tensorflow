@@ -2,6 +2,9 @@
 
 This repository attempts to implement models for recommendation engines in TensorFlow using the Estimator API with feature columns. 
 
+
+The trainer module in this repository also allows for distributed model training and evaluation on Google Cloud Platform. Please refer to [distributed](distributed.md).
+
 ## Models
 
 - Linear classifer: [`linear.py`](trainers/linear.py)
@@ -11,42 +14,19 @@ This repository attempts to implement models for recommendation engines in Tenso
 
 ### DeepFM
 
-TODO: Elaborate on model parameters for DeepFM.
+#### Model Parameters
 
-**Usage**
-```
-python -m trainers.deep_fm -h
-
-usage: deep_fm.py [-h] [--train-csv TRAIN_CSV] [--test-csv TEST_CSV]
-                  [--job-dir JOB_DIR] [--restore] [--exclude-linear]
-                  [--exclude-mf] [--exclude-dnn]
-                  [--embedding-size EMBEDDING_SIZE]
-                  [--hidden-units HIDDEN_UNITS [HIDDEN_UNITS ...]]
-                  [--dropout DROPOUT] [--batch-size BATCH_SIZE]
-                  [--train-steps TRAIN_STEPS]
-
-optional arguments:
-  -h, --help            show this help message and exit
-  --train-csv TRAIN_CSV
-                        path to the training csv data (default: data/ml-
-                        100k/train.csv)
-  --test-csv TEST_CSV   path to the test csv data (default: data/ml-
-                        100k/test.csv)
-  --job-dir JOB_DIR     job directory (default: checkpoints/deep_fm)
-  --restore             whether to restore from job_dir
-  --exclude-linear      flag to exclude linear component (default: False)
-  --exclude-mf          flag to exclude mf component (default: False)
-  --exclude-dnn         flag to exclude dnn component (default: False)
-  --embedding-size EMBEDDING_SIZE
-                        embedding size (default: 4)
-  --hidden-units HIDDEN_UNITS [HIDDEN_UNITS ...]
-                        hidden layer specification (default: [16, 16])
-  --dropout DROPOUT     dropout rate (default: 0.1)
-  --batch-size BATCH_SIZE
-                        batch size (default: 32)
-  --train-steps TRAIN_STEPS
-                        number of training steps (default: 20000)
-```
+- `categorical_columns`: categorical feature columns input
+- `numeric_columns`: numeric feature columns input
+- `use_linear`: flag to include linear structure of model (default: `True`)
+- `use_mf`: flag to include factorisation machine structure of model (default: `True`)
+- `use_dnn`: flag to include deep structure of model (default: `True`)
+- `embedding_size`: embedding size of latent factors (default: `4`)
+- `hidden_units`: layer sizes of hidden units of deep structure (default: `[16, 16]`)
+- `activation_fn`: activation function of deep structure (default: `tf.nn.relu`)
+- `dropout`: dropout rate of deep structure (default: `0`)
+- `optimizer`: learning optimiser (default: `Adam`)
+- `learning_rate`: learning rate (default: `0.001`)
 
 ## Setup
 
@@ -85,6 +65,68 @@ optional arguments:
                        files (default: data)
   --log-path LOG_PATH  path of log file (default: main.log)
 ```
+
+## Train & Evaluate DeepFM
+
+**Usage**
+```
+python -m trainers.deep_fm -h
+
+usage: deep_fm.py [-h] [--train-csv TRAIN_CSV] [--test-csv TEST_CSV]
+                  [--job-dir JOB_DIR] [--restore] [--exclude-linear]
+                  [--exclude-mf] [--exclude-dnn]
+                  [--embedding-size EMBEDDING_SIZE]
+                  [--hidden-units HIDDEN_UNITS [HIDDEN_UNITS ...]]
+                  [--dropout DROPOUT] [--batch-size BATCH_SIZE]
+                  [--train-steps TRAIN_STEPS]
+
+optional arguments:
+  -h, --help            show this help message and exit
+  --train-csv TRAIN_CSV
+                        path to the training csv data (default: data/ml-
+                        100k/train.csv)
+  --test-csv TEST_CSV   path to the test csv data (default: data/ml-
+                        100k/test.csv)
+  --job-dir JOB_DIR     job directory (default: checkpoints/deep_fm)
+  --restore             whether to restore from job_dir
+  --exclude-linear      flag to exclude linear component (default: False)
+  --exclude-mf          flag to exclude mf component (default: False)
+  --exclude-dnn         flag to exclude dnn component (default: False)
+  --embedding-size EMBEDDING_SIZE
+                        embedding size (default: 4)
+  --hidden-units HIDDEN_UNITS [HIDDEN_UNITS ...]
+                        hidden layer specification (default: [16, 16])
+  --dropout DROPOUT     dropout rate (default: 0.1)
+  --batch-size BATCH_SIZE
+                        batch size (default: 32)
+  --train-steps TRAIN_STEPS
+                        number of training steps (default: 20000)
+```
+
+## Tensorboard
+
+You may inspect model training metrics with Tensorboard.
+
+```bash
+tensorboard --logdir checkpoints/
+```
+
+## Other Models Available
+
+```bash
+# linear model
+python -m trainers.linear
+
+# deep model
+python -m trainers.deep
+
+# wide & deep model
+python -m trainers.linear_deep
+```
+
+## Distributed
+
+For distributed model training and evaluation, please refer to [distributed](distributed.md).
 
 ## References
 

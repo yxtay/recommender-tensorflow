@@ -7,8 +7,8 @@ from zipfile import ZipFile
 import dask.dataframe as dd
 import requests
 
-from src.gcp_utils import get_bigquery_client, df_to_bigquery, get_bigquery_table, bigquery_to_table, \
-    bigquery_to_gcs
+from src.gcp_utils import (get_bigquery_client, df_to_bigquery,
+                           bigquery_to_table, bigquery_to_gcs)
 from src.logger import get_logger
 from src.utils import make_dirs
 
