@@ -91,6 +91,7 @@ def process_data(data):
                   .merge(data["items"], "inner", "item_id")
                   .persist())
            for item in ["all", "train", "test"]}
+    dfs.update({"users": users, "items": items})
     logger.info("data merged.")
 
     return dfs

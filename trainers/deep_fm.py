@@ -5,9 +5,7 @@ import tensorflow as tf
 
 from trainers.conf_utils import get_run_config, get_train_spec, get_exporter, get_eval_spec
 from trainers.ml_100k import get_feature_columns, get_input_fn, serving_input_fn
-from trainers.model_utils import (layer_summary, get_binary_predictions,
-                                  get_binary_losses, get_binary_metric_ops,
-                                  get_train_op)
+from trainers.model_utils import layer_summary, get_optimizer
 
 
 def model_fn(features, labels, mode, params):
@@ -116,22 +114,15 @@ def model_fn(features, labels, mode, params):
     with tf.name_scope("deep_fm/logits"):
         layer_summary(logits)
 
-    # prediction
-    predictions = get_binary_predictions(logits)
-    if mode == tf.estimator.ModeKeys.PREDICT:
-        return tf.estimator.EstimatorSpec(mode=mode, predictions=predictions)
-
-    # evaluation
-    losses = get_binary_losses(labels, predictions)
-    metric_ops = get_binary_metric_ops(labels, predictions, losses)
-    if mode == tf.estimator.ModeKeys.EVAL:
-        return tf.estimator.EstimatorSpec(mode=mode, loss=losses["loss"], eval_metric_ops=metric_ops)
-
-    # training
-    train_op = get_train_op(losses["loss"], optimizer, learning_rate)
-    tf.summary.scalar("average_loss", losses["average_loss"])
-    if mode == tf.estimator.ModeKeys.TRAIN:
-        return tf.estimator.EstimatorSpec(mode=mode, loss=losses["loss"], train_op=train_op)
+    optimizer = get_optimizer(optimizer, learning_rate)
+    head = tf.contrib.estimator.binary_classification_head()
+    return head.create_estimator_spec(
+        features=features,
+        mode=mode,
+        labels=labels,
+        optimizer=optimizer,
+        logits=logits
+    )
 
 
 def train_and_evaluate(args):

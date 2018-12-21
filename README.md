@@ -25,7 +25,7 @@ The trainer module in this repository also allows for distributed model training
 - `hidden_units`: layer sizes of hidden units of deep structure (default: `[16, 16]`)
 - `activation_fn`: activation function of deep structure (default: `tf.nn.relu`)
 - `dropout`: dropout rate of deep structure (default: `0`)
-- `optimizer`: learning optimiser (default: `Adam`)
+- `optimizer`: learning optimiser (default: `"Adam"`)
 - `learning_rate`: learning rate (default: `0.001`)
 
 ## Setup
