@@ -3,8 +3,6 @@ import sys
 from logging.handlers import RotatingFileHandler
 from pathlib import Path
 
-from src.utils import make_dirs
-
 
 def get_logger(name, log_path="main.log", console=False):
     """
@@ -30,7 +28,7 @@ def get_logger(name, log_path="main.log", console=False):
 
     # rotating file handler
     if log_path:
-        make_dirs(log_path, isfile=True)
+        Path(log_path).parent.mkdir(parents=True, exist_ok=True)
         fh = RotatingFileHandler(log_path,
                                  maxBytes=10 * 2 ** 20,  # 10 MB
                                  backupCount=1)  # 1 backup

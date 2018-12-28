@@ -5,7 +5,8 @@ EVAL_INTERVAL = 60
 
 def get_run_config():
     return tf.estimator.RunConfig(
-        save_checkpoints_secs=EVAL_INTERVAL
+        save_checkpoints_secs=EVAL_INTERVAL,
+        keep_checkpoint_max=5
     )
 
 

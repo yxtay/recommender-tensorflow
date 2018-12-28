@@ -10,7 +10,6 @@ import requests
 from src.gcp_utils import (get_bigquery_client, df_to_bigquery,
                            bigquery_to_table, bigquery_to_gcs)
 from src.logger import get_logger
-from src.utils import make_dirs
 
 logger = get_logger(__name__)
 
@@ -30,7 +29,7 @@ def download_data(url="http://files.grouplens.org/datasets/movielens/ml-100k.zip
                   dest_dir="data"):
     # prepare destination
     dest = Path(dest_dir) / Path(url).name
-    make_dirs(dest, isfile=True)
+    dest.parent.mkdir(parents=True, exist_ok=True)
 
     # downlaod zip
     if not dest.exists():
